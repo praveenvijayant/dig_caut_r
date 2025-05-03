@@ -1,138 +1,106 @@
-import 'dart:async';
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 
-void main() => runApp(MyApp());
+void main() => runApp(CautionViewerApp());
 
-class MyApp extends StatelessWidget {
+class CautionViewerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Digital Caution Order',
-      theme: ThemeData(primarySwatch: Colors.blue),
-      home: LiveCautionViewer(),
       debugShowCheckedModeBanner: false,
+      home: CautionViewerHomePage(),
     );
   }
 }
 
-class LiveCautionViewer extends StatefulWidget {
+class CautionViewerHomePage extends StatefulWidget {
   @override
-  _LiveCautionViewerState createState() => _LiveCautionViewerState();
+  _CautionViewerHomePageState createState() => _CautionViewerHomePageState();
 }
 
-class _LiveCautionViewerState extends State<LiveCautionViewer> {
-  Position? _currentPosition;
-  double? _currentKm;
-  List<dynamic> _railwaySegments = [];
+class _CautionViewerHomePageState extends State<CautionViewerHomePage> {
+  double speed = 0.0;
+  double kilometer = 0.0;
+  String status = "Safe";
+  String fromMast = "-";
+  String toMast = "-";
+  String reason = "-";
+  int limit = 100;
+  double distance = 0.0;
 
   @override
   void initState() {
     super.initState();
-    _getLocation();
-    _loadGeoJson();
+    _startLocationUpdates();
   }
 
-  Future<void> _loadGeoJson() async {
-    final geojson = await rootBundle.loadString('assets/railway_lines.geojson');
-    final data = json.decode(geojson);
-    setState(() {
-      _railwaySegments = data['features'];
-    });
-  }
-
-  Future<void> _getLocation() async {
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
-
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.deniedForever) return;
-    }
-
+  void _startLocationUpdates() {
     Geolocator.getPositionStream().listen((Position position) {
       setState(() {
-        _currentPosition = position;
-        _currentKm = _getNearestRailwayKm(position.latitude, position.longitude);
+        speed = position.speed * 3.6;
+        kilometer = _simulateKmFromLatLng(position.latitude, position.longitude);
+        // Fake logic: if KM between 388.0 and 388.5, simulate caution zone
+        if (kilometer >= 388.0 && kilometer <= 388.5) {
+          status = "CAUTION AHEAD";
+          fromMast = "388/33";
+          toMast = "388/09";
+          limit = 75;
+          reason = "Level Correction";
+          distance = 388.5 - kilometer;
+        } else {
+          status = "Safe";
+          fromMast = toMast = reason = "-";
+          limit = 100;
+          distance = 0.0;
+        }
       });
     });
   }
 
-  double? _getNearestRailwayKm(double lat, double lon) {
-    final distance = Distance();
-    double minDist = double.infinity;
-    double? matchedKm;
-
-    for (var feature in _railwaySegments) {
-      final coords = feature['geometry']['coordinates'];
-      for (var coord in coords) {
-        double lon2 = coord[0];
-        double lat2 = coord[1];
-        double dist = distance.as(LengthUnit.Kilometer, LatLng(lat, lon), LatLng(lat2, lon2));
-        if (dist < minDist) {
-          minDist = dist;
-          matchedKm = feature['properties']['start_km']?.toDouble();
-        }
-      }
-    }
-    return matchedKm;
+  double _simulateKmFromLatLng(double lat, double lng) {
+    // Dummy converter — replace with geojson logic in production
+    return 387.5 + (lat % 0.01) * 100; // Simulates a stretch between 387.5 to 388.5
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Digital Caution Order')),
-      body: _currentPosition == null
-          ? Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                Container(
-                  padding: EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Latitude: ${_currentPosition!.latitude.toStringAsFixed(5)}'),
-                      Text('Longitude: ${_currentPosition!.longitude.toStringAsFixed(5)}'),
-                      Text('Speed: ${(_currentPosition!.speed * 3.6).toStringAsFixed(1)} km/h'),
-                      Text('Matched KM: ${_currentKm?.toStringAsFixed(3) ?? "Detecting..."}'),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: FlutterMap(
-                    options: MapOptions(
-                      center: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-                      zoom: 16.0,
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("Current Speed: ${speed.toStringAsFixed(1)} kmph", style: TextStyle(color: Colors.white, fontSize: 20)),
+                    Text("Current KM: ${kilometer.toStringAsFixed(3)}", style: TextStyle(color: Colors.white, fontSize: 20)),
+                    Divider(color: Colors.white24),
+                    Text("Next Caution: $fromMast to $toMast", style: TextStyle(color: Colors.amberAccent, fontSize: 18)),
+                    Text("Speed Limit: $limit kmph", style: TextStyle(color: Colors.redAccent, fontSize: 18)),
+                    Text("Reason: $reason", style: TextStyle(color: Colors.lightBlue, fontSize: 18)),
+                    Text("Distance to Caution: ${distance.toStringAsFixed(2)} km", style: TextStyle(color: Colors.greenAccent, fontSize: 18)),
+                    SizedBox(height: 20),
+                    Container(
+                      padding: EdgeInsets.all(8),
+                      color: (status == "Safe") ? Colors.green : Colors.red,
+                      child: Text("$status", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
                     ),
-                    children: [
-                      TileLayer(
-                        urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-                        subdomains: ['a', 'b', 'c'],
-                      ),
-                      MarkerLayer(
-                        markers: [
-                          Marker(
-                            width: 60.0,
-                            height: 60.0,
-                            point: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-                            builder: (ctx) =>
-                                Icon(Icons.location_pin, color: Colors.red, size: 40),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
+            Expanded(
+              child: Container(
+                color: Colors.grey[900],
+                child: Center(child: Text("Map View (Simulated)", style: TextStyle(color: Colors.white60))),
+              ),
+            )
+          ],
+        ),
+      ),
     );
   }
 }
-
-
