@@ -1,19 +1,15 @@
 name: railway_caution_viewer
 description: Train-side app to display caution orders live.
-
 publish_to: 'none'
 version: 1.0.0+1
-
 environment:
   sdk: ">=2.18.0 <3.0.0"
-
 dependencies:
   flutter:
     sdk: flutter
   geolocator: ^10.1.0
   flutter_map: ^6.1.0
   latlong2: ^0.8.1
-
 flutter:
   uses-material-design: true
   assets:
