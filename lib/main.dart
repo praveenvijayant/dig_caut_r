@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:geolocator/geolocator.dart';
@@ -19,20 +20,24 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
 class LiveCautionViewer extends StatefulWidget {
   @override
   _LiveCautionViewerState createState() => _LiveCautionViewerState();
 }
+
 class _LiveCautionViewerState extends State<LiveCautionViewer> {
   Position? _currentPosition;
   double? _currentKm;
   List<dynamic> _railwaySegments = [];
+
   @override
   void initState() {
     super.initState();
     _getLocation();
     _loadGeoJson();
   }
+
   Future<void> _loadGeoJson() async {
     final geojson = await rootBundle.loadString('assets/railway_lines.geojson');
     final data = json.decode(geojson);
@@ -40,6 +45,7 @@ class _LiveCautionViewerState extends State<LiveCautionViewer> {
       _railwaySegments = data['features'];
     });
   }
+
   Future<void> _getLocation() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
@@ -49,6 +55,7 @@ class _LiveCautionViewerState extends State<LiveCautionViewer> {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.deniedForever) return;
     }
+
     Geolocator.getPositionStream().listen((Position position) {
       setState(() {
         _currentPosition = position;
@@ -56,6 +63,7 @@ class _LiveCautionViewerState extends State<LiveCautionViewer> {
       });
     });
   }
+
   double? _getNearestRailwayKm(double lat, double lon) {
     final distance = Distance();
     double minDist = double.infinity;
